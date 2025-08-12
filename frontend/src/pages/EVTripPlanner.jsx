@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from 'react-leaflet';
+import { Link } from 'react-router-dom';
+import { MapPin, Zap, Clock, DollarSign, Star, Calendar, Navigation } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import toast from 'react-hot-toast';
 import polyline from '@mapbox/polyline';
@@ -172,36 +174,179 @@ export default function EVTripPlanner() {
             {/* Start and End Markers */}
             <Marker position={route[0]}><Popup>Start</Popup></Marker>
             <Marker position={route[route.length - 1]}><Popup>Destination</Popup></Marker>
-            {/* Charging Stops */}
+            {/* Individual Station Markers */}
+            {stops.map((stop, idx) => 
+              stop.stations.map(station => (
+                <Marker 
+                  key={`${idx}-${station._id}`} 
+                  position={[station.location.coordinates[1], station.location.coordinates[0]]}
+                >
+                  <Popup>
+                    <div className="min-w-80 space-y-4">
+                      <div className="text-center">
+                        <h3 className="font-semibold text-lg text-green-600">{station.name}</h3>
+                        <p className="text-sm text-gray-600">Charging Station</p>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-gray-900">{station.name}</h4>
+                            <div className="flex items-center space-x-1">
+                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                              <span className="text-sm text-gray-600">{station.averageRating?.toFixed(1) || 'N/A'}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1 text-sm text-gray-600 mb-3">
+                            <div className="flex items-center space-x-2">
+                              <MapPin className="w-4 h-4" />
+                              <span>{station.address}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <DollarSign className="w-4 h-4" />
+                              <span>₹{station.price}/hour</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Zap className="w-4 h-4" />
+                              <span>{station.types.join(', ')}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Clock className="w-4 h-4" />
+                              <span>{station.isAvailable24x7 ? '24/7 Available' : 'Limited Hours'}</span>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Link
+                              to={`/booking/${station._id}/${station.price}`}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white text-center py-2 px-3 rounded-lg text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                              onClick={() => {
+                                toast.success(`Opening booking for ${station.name}`);
+                              }}
+                            >
+                              <Calendar className="w-4 h-4" />
+                              <span>Book Now</span>
+                            </Link>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(station.address);
+                                toast.success('Address copied to clipboard');
+                              }}
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                              title="Copy address for navigation"
+                            >
+                              <Navigation className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))
+            )}
+            
+            {/* Stop Location Markers (for reference) */}
             {stops.map((stop, idx) => (
-              <Marker key={idx} position={stop.point}>
+              <Marker 
+                key={`stop-${idx}`} 
+                position={stop.point}
+                icon={L.divIcon({
+                  className: 'stop-location-marker',
+                  html: '<div style="background-color: #3b82f6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><span style="color: white; font-weight: bold; font-size: 10px;">S</span></div>',
+                  iconSize: [20, 20],
+                  iconAnchor: [10, 10]
+                })}
+              >
                 <Popup>
-                  <div>
-                    <b>Charging Stop {idx + 1}</b>
-                    <ul className="mt-2 space-y-1">
-                      {stop.stations.map(station => (
-                        <li key={station._id}>
-                          <b>{station.name}</b><br />
-                          {station.address}<br />
-                          ₹{station.price}/hr
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-blue-600">Stop {idx + 1}</h3>
+                    <p className="text-sm text-gray-600">Suggested charging area</p>
+                    <p className="text-xs text-gray-500 mt-1">{stop.stations.length} station(s) nearby</p>
                   </div>
                 </Popup>
               </Marker>
             ))}
           </MapContainer>
-          <div className="mt-4">
-            <h3 className="font-semibold mb-2">Suggested Stops:</h3>
-            {stops.length === 0 ? <div>No charging stops needed (or found) within your range.</div> : (
-              <ol className="list-decimal ml-6 space-y-2">
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-4">Suggested Charging Stops</h3>
+            {stops.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <Zap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500">No charging stops needed within your range</p>
+                <p className="text-sm text-gray-400 mt-1">Your vehicle can reach the destination without charging</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
                 {stops.map((stop, idx) => (
-                  <li key={idx}>
-                    <b>Stop {idx + 1}:</b> {stop.stations[0]?.name || 'Charging Station'} ({stop.stations[0]?.address || 'No address'})
-                  </li>
+                  <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">Stop {idx + 1}</h4>
+                        <p className="text-sm text-gray-600">Suggested charging location</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {stop.stations.map(station => (
+                        <div key={station._id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                          <div className="flex items-start justify-between mb-2">
+                            <h5 className="font-medium text-gray-900">{station.name}</h5>
+                            <div className="flex items-center space-x-1">
+                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                              <span className="text-sm text-gray-600">{station.averageRating?.toFixed(1) || 'N/A'}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1 text-sm text-gray-600 mb-3">
+                            <div className="flex items-center space-x-2">
+                              <MapPin className="w-4 h-4" />
+                              <span className="truncate">{station.address}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <DollarSign className="w-4 h-4" />
+                              <span>₹{station.price}/hour</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Zap className="w-4 h-4" />
+                              <span>{station.types.join(', ')}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Clock className="w-4 h-4" />
+                              <span>{station.isAvailable24x7 ? '24/7' : 'Limited'}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2">
+                            <Link
+                              to={`/booking/${station._id}/${station.price}`}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 text-white text-center py-2 px-3 rounded-lg text-sm font-medium hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                              onClick={() => {
+                                toast.success(`Opening booking for ${station.name}`);
+                              }}
+                            >
+                              <Calendar className="w-4 h-4" />
+                              <span>Book</span>
+                            </Link>
+                            <button
+                              onClick={() => {
+                                // Copy address to clipboard for navigation
+                                navigator.clipboard.writeText(station.address);
+                                toast.success('Address copied to clipboard');
+                              }}
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                              title="Copy address for navigation"
+                            >
+                              <Navigation className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </ol>
+              </div>
             )}
           </div>
         </div>

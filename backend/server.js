@@ -18,6 +18,10 @@ app.use('/api/stations', require('./routes/stations'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/payment', require('./routes/payment'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/reviews', require('./routes/reviews'));
+app.use('/api/onwheel-services', require('./routes/onwheel-services'));
+app.use('/api/onwheel-requests', require('./routes/onwheel-requests'));
+app.use('/api/onwheel-payment', require('./routes/onwheel-payment'));
 
 const PORT = process.env.PORT || 5000;
 

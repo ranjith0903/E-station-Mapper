@@ -4,7 +4,10 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Calendar, Clock, DollarSign, MapPin, Zap, CreditCard, AlertCircle, CheckCircle, Play } from 'lucide-react';
 import BookingAvailability from '../components/BookingAvailability';
+import ReviewSection from '../components/ReviewSection';
 import toast from 'react-hot-toast';
+import emailjs from '@emailjs/browser';
+import { OWNER_EMAIL_CONFIG, EMAIL_CONFIG } from '../utils/emailConfig';
 
 const stripePromise = loadStripe('pk_test_51QBqViHVrEESOxZHwP3ur6Ga3060peMawzOmlj7qrPi5IWPLdVRHtUjyudYiXT874RgzwpKtYu46QyRsJkHqaF8C00heb4jEYZ');
 
@@ -107,6 +110,68 @@ function BookingForm({ stationId, amount, station }) {
     return Object.keys(newErrors).length === 0;
   };
 
+  const sendOwnerNotification = async (station, bookingDetails) => {
+    try {
+      await emailjs.send(
+        OWNER_EMAIL_CONFIG.SERVICE_ID,
+        OWNER_EMAIL_CONFIG.TEMPLATE_ID,
+        {
+          to_email: station.owner.email, // Owner's email
+          station_name: station.name,
+          user_name: billingDetails.name || 'EV User',
+          booking_date: formData.date,
+          booking_time: `${formData.startTime} - ${formData.endTime}`,
+          amount: totalAmount,
+          booking_id: bookingDetails.id
+        },
+        OWNER_EMAIL_CONFIG.PUBLIC_KEY
+      );
+      console.log('Owner notification sent successfully');
+    } catch (error) {
+      console.error('Failed to send owner notification:', error);
+      // Don't show error to user, as booking was successful
+    }
+  };
+
+  const sendUserConfirmation = async (bookingDetails) => {
+    try {
+      console.log('Sending user confirmation email to:', billingDetails.email);
+      console.log('Email template variables:', {
+        to_email: billingDetails.email,
+        booking_id: bookingDetails.id || bookingDetails._id,
+        station_name: station.name,
+        booking_date: formData.date,
+        booking_time: `${formData.startTime} - ${formData.endTime}`,
+        amount: totalAmount,
+        user_name: billingDetails.name || 'EV User'
+      });
+
+      await emailjs.send(
+        EMAIL_CONFIG.SERVICE_ID,
+        EMAIL_CONFIG.TEMPLATE_ID,
+        {
+          to_email: billingDetails.email,
+          booking_id: bookingDetails.id || bookingDetails._id,
+          station_name: station.name,
+          booking_date: formData.date,
+          booking_time: `${formData.startTime} - ${formData.endTime}`,
+          amount: totalAmount,
+          user_name: billingDetails.name || 'EV User'
+        },
+        EMAIL_CONFIG.PUBLIC_KEY
+      );
+      console.log('User confirmation email sent successfully');
+    } catch (error) {
+      console.error('Failed to send user confirmation:', error);
+      console.error('Error details:', {
+        serviceId: EMAIL_CONFIG.SERVICE_ID,
+        templateId: EMAIL_CONFIG.TEMPLATE_ID,
+        publicKey: EMAIL_CONFIG.PUBLIC_KEY
+      });
+      // Don't show error to user, as booking was successful
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -192,6 +257,14 @@ function BookingForm({ stationId, amount, station }) {
       });
 
       if (bookingRes.ok) {
+        const bookingData = await bookingRes.json();
+        
+        // Send notification to station owner
+        await sendOwnerNotification(station, bookingData);
+        
+        // Send confirmation email to user
+        await sendUserConfirmation(bookingData);
+        
         toast.success('Booking confirmed! Check your email for details.');
         navigate('/dashboard');
       } else {
@@ -516,8 +589,24 @@ export default function Booking() {
   }
 
   return (
-    <Elements stripe={stripePromise}>
-      <BookingForm stationId={stationId} amount={parseFloat(amount)} station={station} />
-    </Elements>
+    <div className="container mx-auto px-4 py-8">
+      <Elements stripe={stripePromise}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Booking Form */}
+          <div className="lg:col-span-2">
+            <BookingForm stationId={stationId} amount={parseFloat(amount)} station={station} />
+          </div>
+          
+          {/* Reviews Section */}
+          <div className="lg:col-span-1">
+            <ReviewSection 
+              stationId={stationId} 
+              station={station} 
+              onReviewUpdate={(updatedStation) => setStation(updatedStation)}
+            />
+          </div>
+        </div>
+      </Elements>
+    </div>
   );
 } 

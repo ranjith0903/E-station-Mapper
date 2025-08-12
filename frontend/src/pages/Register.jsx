@@ -204,6 +204,7 @@ export default function Register({ setAuth }) {
                 >
                   <option value="user">Find and book charging stations</option>
                   <option value="owner">List my charging station</option>
+                  <option value="onwheel-provider">Provide on-wheel charging services</option>
                 </select>
               </div>
             </div>

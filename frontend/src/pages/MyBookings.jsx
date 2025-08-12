@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Zap, MapPin, Clock, DollarSign, XCircle, Loader2, CheckCircle, AlertCircle, Play, Square } from 'lucide-react';
+import { Zap, MapPin, Clock, DollarSign, XCircle, Loader2, CheckCircle, AlertCircle, Play, Square, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ReviewPromptModal from '../components/ReviewPromptModal';
 
 export default function MyBookings() {
   const [bookings, setBookings] = useState([]);
@@ -9,10 +10,45 @@ export default function MyBookings() {
   const [startingSession, setStartingSession] = useState(null);
   const [endingSession, setEndingSession] = useState(null);
   const [filter, setFilter] = useState('all'); // all, pending, ongoing, completed, cancelled
+  const [reviewModal, setReviewModal] = useState({ isOpen: false, booking: null });
+  const [reviewedBookings, setReviewedBookings] = useState(new Set());
 
   useEffect(() => {
     fetchBookings();
+    // Load reviewed bookings from localStorage
+    const savedReviewedBookings = localStorage.getItem('reviewedBookings');
+    if (savedReviewedBookings) {
+      setReviewedBookings(new Set(JSON.parse(savedReviewedBookings)));
+    }
   }, []);
+
+  // Show review prompt for unreviewed completed bookings after loading
+  useEffect(() => {
+    if (!loading && bookings.length > 0) {
+      const unreviewedCompleted = bookings.filter(b => 
+        b.status === 'completed' && !reviewedBookings.has(b._id)
+      );
+      
+      // Check if user has disabled review prompts
+      const dontShowPrompts = localStorage.getItem('dontShowReviewPrompts') === 'true';
+      
+      // Only show review prompt if user hasn't seen it recently (once per session)
+      const hasShownReviewThisSession = sessionStorage.getItem('hasShownReviewThisSession') === 'true';
+      
+      // Show review prompt for the most recent unreviewed booking
+      if (unreviewedCompleted.length > 0 && !reviewModal.isOpen && !dontShowPrompts && !hasShownReviewThisSession) {
+        const mostRecent = unreviewedCompleted.sort((a, b) => 
+          new Date(b.actualEnd || b.updatedAt) - new Date(a.actualEnd || a.updatedAt)
+        )[0];
+        
+        // Show prompt after a longer delay and mark as shown
+        setTimeout(() => {
+          setReviewModal({ isOpen: true, booking: mostRecent });
+          sessionStorage.setItem('hasShownReviewThisSession', 'true');
+        }, 5000); // Increased delay to 5 seconds
+      }
+    }
+  }, [loading, bookings, reviewedBookings, reviewModal.isOpen]);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -95,8 +131,14 @@ export default function MyBookings() {
         }
       });
       if (res.ok) {
+        const updatedBooking = await res.json();
         toast.success('Charging session ended');
-        setBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: 'completed', actualEnd: new Date() } : b));
+        setBookings(prev => prev.map(b => b._id === bookingId ? updatedBooking : b));
+        
+        // Show review prompt after a short delay
+        setTimeout(() => {
+          setReviewModal({ isOpen: true, booking: updatedBooking });
+        }, 1000);
       } else {
         const data = await res.json();
         toast.error(data.error || 'Failed to end session');
@@ -130,6 +172,36 @@ export default function MyBookings() {
     if (filter === 'all') return true;
     return b.status === filter;
   });
+
+  // Check for unreviewed completed bookings
+  const unreviewedCompletedBookings = bookings.filter(b => 
+    b.status === 'completed' && !reviewedBookings.has(b._id)
+  );
+
+  // Review submission handler
+  const handleSubmitReview = async (stationId, reviewData) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/reviews/${stationId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(reviewData)
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to submit review');
+    }
+
+    // Mark this booking as reviewed
+    if (reviewModal.booking) {
+      const newReviewedBookings = new Set([...reviewedBookings, reviewModal.booking._id]);
+      setReviewedBookings(newReviewedBookings);
+      localStorage.setItem('reviewedBookings', JSON.stringify([...newReviewedBookings]));
+    }
+  };
 
   // Google Maps Directions Handler
   const handleDirections = (station) => {
@@ -174,6 +246,39 @@ export default function MyBookings() {
           ))}
         </div>
       </div>
+
+      {/* Review Reminder Banner - Only show if user hasn't disabled prompts */}
+      {unreviewedCompletedBookings.length > 0 && localStorage.getItem('dontShowReviewPrompts') !== 'true' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              <div>
+                <h3 className="text-sm font-medium text-blue-900">
+                  Review Your Experience
+                </h3>
+                <p className="text-sm text-blue-700">
+                  You have {unreviewedCompletedBookings.length} completed charging session{unreviewedCompletedBookings.length > 1 ? 's' : ''} to review
+                </p>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setReviewModal({ isOpen: true, booking: unreviewedCompletedBookings[0] })}
+                className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition-colors"
+              >
+                Review Now
+              </button>
+              <button
+                onClick={() => localStorage.setItem('dontShowReviewPrompts', 'true')}
+                className="text-blue-600 hover:text-blue-800 text-sm"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {loading ? (
@@ -280,9 +385,20 @@ export default function MyBookings() {
                 )}
                 
                 {booking.status === 'completed' && (
-                  <span className="flex items-center text-green-600 text-xs mt-2 md:mt-0">
-                    <CheckCircle className="h-4 w-4 mr-1" /> Completed
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="flex items-center text-green-600 text-xs">
+                      <CheckCircle className="h-4 w-4 mr-1" /> Completed
+                    </span>
+                    {!reviewedBookings.has(booking._id) && (
+                      <button
+                        onClick={() => setReviewModal({ isOpen: true, booking })}
+                        className="btn-secondary flex items-center space-x-1 text-xs"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        <span>Review</span>
+                      </button>
+                    )}
+                  </div>
                 )}
                 
                 {booking.status === 'cancelled' && (
@@ -303,6 +419,14 @@ export default function MyBookings() {
           ))
         )}
       </div>
+
+      {/* Review Prompt Modal */}
+      <ReviewPromptModal
+        isOpen={reviewModal.isOpen}
+        onClose={() => setReviewModal({ isOpen: false, booking: null })}
+        booking={reviewModal.booking}
+        onSubmitReview={handleSubmitReview}
+      />
     </div>
   );
 } 

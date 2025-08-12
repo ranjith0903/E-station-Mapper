@@ -269,17 +269,136 @@ router.get('/station/:stationId/status', auth, async (req, res) => {
     const now = new Date();
     
     // Get current ongoing booking
-    const ongoingBooking = await Booking.findOne({
+    let ongoingBooking = await Booking.findOne({
       station: stationId,
       status: 'ongoing'
     }).populate('user');
     
+    // Auto-complete bookings that have passed their end time
+    if (ongoingBooking && ongoingBooking.slot && ongoingBooking.slot.end) {
+      const endTime = new Date(ongoingBooking.slot.end);
+      if (now > endTime) {
+        // Booking has passed its end time, auto-complete it
+        await ongoingBooking.endSession();
+        // Re-fetch the booking after status update
+        const updatedBooking = await Booking.findById(ongoingBooking._id).populate('user');
+        if (updatedBooking && updatedBooking.status === 'completed') {
+          // Booking was successfully completed, set ongoingBooking to null
+          ongoingBooking = null;
+        }
+      }
+    }
+    
+
+    
+    // Also check if there are any confirmed bookings that should have started but haven't
+    // This handles cases where users don't press "Start Session"
+    const overdueConfirmedBookings = await Booking.find({
+      station: stationId,
+      status: 'confirmed',
+      'slot.start': { $lt: now },
+      'slot.end': { $gt: now },
+      actualStart: { $exists: false } // No actual start time recorded
+    });
+    
+    // Auto-start overdue confirmed bookings
+    for (const overdueBooking of overdueConfirmedBookings) {
+      await overdueBooking.startSession();
+      console.log(`Auto-started overdue booking ${overdueBooking._id} for station ${stationId}`);
+    }
+    
+    // Re-fetch ongoing booking after auto-start
+    if (overdueConfirmedBookings.length > 0) {
+      ongoingBooking = await Booking.findOne({
+        station: stationId,
+        status: 'ongoing'
+      }).populate('user');
+    }
+    
+    // Check if there are any completed bookings that might still be showing as ongoing
+    // This is a safety check to ensure completed sessions don't show as ongoing
+    const completedBookings = await Booking.find({
+      station: stationId,
+      status: 'completed',
+      actualEnd: { $exists: true }
+    }).sort({ actualEnd: -1 }).limit(1);
+    
+    // If there's a completed booking that ended recently, ensure it's not interfering
+    if (completedBookings.length > 0) {
+      const lastCompleted = completedBookings[0];
+      const timeSinceCompletion = now.getTime() - lastCompleted.actualEnd.getTime();
+      // If the booking was completed more than 5 minutes ago, it shouldn't affect current status
+      if (timeSinceCompletion > 5 * 60 * 1000) {
+        // This is fine, the booking was properly completed
+      }
+    }
+    
+    // Cleanup: Find any stale ongoing bookings that should have ended
+    // This handles cases where the end session wasn't properly called
+    const staleOngoingBookings = await Booking.find({
+      station: stationId,
+      status: 'ongoing',
+      'slot.end': { $lt: now } // End time has passed
+    });
+    
+    // Auto-complete any stale bookings
+    for (const staleBooking of staleOngoingBookings) {
+      await staleBooking.endSession();
+      console.log(`Auto-completed stale booking ${staleBooking._id} for station ${stationId}`);
+    }
+    
+    // Also cleanup any confirmed bookings that have expired
+    const expiredConfirmedBookings = await Booking.find({
+      station: stationId,
+      status: 'confirmed',
+      'slot.end': { $lt: now }, // End time has passed
+      actualEnd: { $exists: false } // No actual end time recorded
+    });
+    
+    // Mark expired confirmed bookings as completed
+    for (const expiredBooking of expiredConfirmedBookings) {
+      expiredBooking.status = 'completed';
+      expiredBooking.actualEnd = new Date(expiredBooking.slot.end);
+      await expiredBooking.save();
+      console.log(`Marked expired confirmed booking ${expiredBooking._id} as completed for station ${stationId}`);
+    }
+    
+    // Also handle confirmed bookings that are in their time slot but haven't started
+    // These should be auto-started to prevent them from blocking the station
+    const inSlotConfirmedBookings = await Booking.find({
+      station: stationId,
+      status: 'confirmed',
+      'slot.start': { $lte: now }, // Should have started
+      'slot.end': { $gt: now }, // Should still be active
+      actualStart: { $exists: false } // But hasn't actually started
+    });
+    
+    // Auto-start these bookings
+    for (const inSlotBooking of inSlotConfirmedBookings) {
+      await inSlotBooking.startSession();
+      console.log(`Auto-started in-slot booking ${inSlotBooking._id} for station ${stationId}`);
+    }
+    
+    // Re-fetch ongoing booking after cleanup
+    if (staleOngoingBookings.length > 0 || inSlotConfirmedBookings.length > 0 || expiredConfirmedBookings.length > 0) {
+      ongoingBooking = await Booking.findOne({
+        station: stationId,
+        status: 'ongoing'
+      }).populate('user');
+    }
+    
     // Get immediate confirmed bookings that are about to start (within next 30 minutes)
+    // Exclude bookings that are currently in their time slot but haven't started
     const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
     const immediateConfirmedBookings = await Booking.find({
       station: stationId,
       status: 'confirmed',
-      'slot.start': { $gte: now, $lte: thirtyMinutesFromNow }
+      'slot.start': { $gte: now, $lte: thirtyMinutesFromNow },
+      // Exclude bookings that are currently in their time slot (these will be handled by auto-start logic)
+      $or: [
+        { 'slot.start': { $gt: now } }, // Future bookings
+        { actualStart: { $exists: true } } // Already started bookings
+      ]
     }).populate('user').sort({ 'slot.start': 1 });
     
     // Get immediate pending bookings (queue) - only for today

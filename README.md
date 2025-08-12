@@ -10,12 +10,16 @@ A modern, full-stack application for finding and booking electric vehicle chargi
 - **Real-time Booking**: Book charging slots with instant payment via Stripe
 - **Booking History**: View all your past and upcoming bookings
 - **Location Detection**: Automatic GPS location detection
+- **Get Directions**: Get driving directions to stations via Google Maps
+- **EV Trip Planner**: Plan long journeys with charging stops
 
 ### For Station Owners
 - **Station Registration**: Add your charging stations with detailed information
 - **Map-based Location Picker**: Precisely set your station location
 - **Earnings Dashboard**: Track your revenue and booking statistics
 - **Station Management**: View and manage all your registered stations
+- **Booking Approval System**: Approve or reject booking requests manually
+- **Email Notifications**: Automatically notify users when bookings are approved
 
 ### Technical Features
 - **Modern UI/UX**: Beautiful, responsive design with Tailwind CSS
@@ -23,6 +27,7 @@ A modern, full-stack application for finding and booking electric vehicle chargi
 - **Secure Authentication**: JWT-based authentication with role-based access
 - **Payment Integration**: Stripe payment processing for bookings
 - **Geospatial Queries**: MongoDB GeoJSON for location-based searches
+- **Email Integration**: EmailJS for booking confirmation emails
 
 ## 🚀 Quick Start
 
@@ -30,6 +35,7 @@ A modern, full-stack application for finding and booking electric vehicle chargi
 - Node.js (v16 or higher)
 - MongoDB (local or MongoDB Atlas)
 - Stripe account (for payments)
+- EmailJS account (for email notifications)
 
 ### Installation
 
@@ -48,7 +54,7 @@ A modern, full-stack application for finding and booking electric vehicle chargi
 3. **Install frontend dependencies**
    ```bash
    cd ../frontend
-   npm install --legacy-peer-deps
+   npm install
    ```
 
 4. **Environment Setup**
@@ -65,7 +71,22 @@ A modern, full-stack application for finding and booking electric vehicle chargi
    const stripePromise = loadStripe('your_stripe_publishable_key');
    ```
 
-5. **Start the servers**
+5. **EmailJS Setup (Optional but Recommended)**
+   
+   For booking confirmation emails:
+   1. Go to [EmailJS](https://www.emailjs.com/) and create a free account
+   2. Create an email service (Gmail, Outlook, etc.)
+   3. Create an email template with variables: `{{to_email}}`, `{{booking_id}}`, `{{station_name}}`, `{{booking_date}}`, `{{booking_time}}`, `{{amount}}`, `{{user_name}}`
+   4. Update `frontend/src/utils/emailConfig.js` with your credentials:
+   ```javascript
+   export const EMAIL_CONFIG = {
+     SERVICE_ID: 'your_service_id',
+     TEMPLATE_ID: 'your_template_id',
+     PUBLIC_KEY: 'your_public_key'
+   };
+   ```
+
+6. **Start the servers**
 
    Backend (from `backend` directory):
    ```bash
@@ -77,7 +98,7 @@ A modern, full-stack application for finding and booking electric vehicle chargi
    npm run dev
    ```
 
-6. **Access the application**
+7. **Access the application**
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:5000
 
@@ -93,7 +114,7 @@ estation-mapper/
 │   ├── routes/
 │   │   ├── auth.js          # Authentication routes
 │   │   ├── stations.js      # Station management routes
-│   │   ├── bookings.js      # Booking routes
+│   │   ├── bookings.js      # Booking routes with approval system
 │   │   └── payment.js       # Stripe payment routes
 │   ├── middleware/
 │   │   └── auth.js          # JWT authentication middleware
@@ -106,7 +127,10 @@ estation-mapper/
 │   │   │   ├── MapView.jsx      # Interactive map with stations
 │   │   │   ├── StationRegister.jsx  # Station registration form
 │   │   │   ├── Booking.jsx      # Booking and payment
+│   │   │   ├── MyStations.jsx   # Owner dashboard with booking approval
 │   │   │   └── Dashboard.jsx    # User dashboard
+│   │   ├── utils/
+│   │   │   └── emailConfig.js   # EmailJS configuration
 │   │   ├── App.jsx              # Main app with routing
 │   │   └── index.css            # Tailwind CSS styles
 │   ├── tailwind.config.js       # Tailwind configuration
@@ -125,6 +149,12 @@ estation-mapper/
 1. Create a Stripe account at https://stripe.com
 2. Get your API keys from the Stripe dashboard
 3. Update both secret and publishable keys in the configuration
+
+### EmailJS Setup
+1. Create an EmailJS account at https://www.emailjs.com
+2. Set up an email service (Gmail recommended)
+3. Create an email template for booking confirmations
+4. Update the credentials in `frontend/src/utils/emailConfig.js`
 
 ### Environment Variables
 
@@ -150,13 +180,21 @@ const stripePromise = loadStripe('pk_test_your_stripe_publishable_key');
 4. **Book a Slot**: Click "Book Now" on any station
 5. **Complete Payment**: Enter card details and confirm booking
 6. **View Bookings**: Check your dashboard for booking history
+7. **Get Directions**: Use the "Get Directions" feature for navigation
 
 ### For Station Owners
 1. **Register as Owner**: Create an account with "Station Owner" role
 2. **Add Stations**: Use the "Add Station" form to register your charging stations
 3. **Set Location**: Click on the map to set precise station location
 4. **Configure Details**: Set charging types, plug types, pricing, and availability
-5. **Monitor Earnings**: View your dashboard for booking statistics and earnings
+5. **Manage Bookings**: Approve or reject booking requests in your dashboard
+6. **Monitor Earnings**: View your dashboard for booking statistics and earnings
+
+### Booking Approval System
+- **Auto Mode**: Bookings are automatically confirmed (default)
+- **Manual Mode**: Owners must manually approve each booking
+- **Email Notifications**: Users receive confirmation emails when bookings are approved
+- **Owner Dashboard**: View and manage all pending bookings for your stations
 
 ## 🛠️ API Endpoints
 
@@ -173,6 +211,9 @@ const stripePromise = loadStripe('pk_test_your_stripe_publishable_key');
 ### Bookings
 - `POST /api/bookings` - Create new booking
 - `GET /api/bookings` - Get user's bookings
+- `PATCH /api/bookings/:id/approve` - Approve booking (owner only)
+- `PATCH /api/bookings/:id/reject` - Reject booking (owner only)
+- `PATCH /api/bookings/:id/cancel` - Cancel booking
 
 ### Payments
 - `POST /api/payment/create-payment-intent` - Create Stripe payment intent
@@ -185,6 +226,7 @@ The application uses a modern design system with:
 - **React Hot Toast** for notifications
 - **React Leaflet** for maps
 - **Stripe Elements** for payment forms
+- **EmailJS** for email notifications
 
 ## 🔒 Security Features
 
@@ -239,6 +281,8 @@ For support and questions:
 - [ ] IoT integration for automatic station control
 - [ ] Route planning with charging stops
 - [ ] Admin panel for platform management
+- [ ] SMS notifications
+- [ ] Advanced analytics dashboard
 
 ---
 

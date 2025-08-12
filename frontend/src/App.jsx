@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { MapPin, User, Plus, LogOut, Zap, Home, Settings, Calendar, Shield } from 'lucide-react';
+import { MapPin, User, Plus, LogOut, Zap, Home, Settings, Calendar, Shield, Truck } from 'lucide-react';
+import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import MapView from './pages/MapView';
@@ -13,6 +14,9 @@ import MyBookings from './pages/MyBookings';
 import AdminPanel from './pages/AdminPanel';
 import MyStations from './pages/MyStations';
 import EVTripPlanner from './pages/EVTripPlanner';
+import OnWheelServices from './pages/OnWheelServices';
+import OnWheelServiceRegister from './pages/OnWheelServiceRegister';
+import RequestOnWheelService from './pages/RequestOnWheelService';
 
 function Navigation({ auth, setAuth }) {
   const location = useLocation();
@@ -22,24 +26,31 @@ function Navigation({ auth, setAuth }) {
     setAuth(null);
   };
 
+  // Don't show navigation on landing page
+  if (location.pathname === '/') {
+    return null;
+  }
+
   return (
-    <nav className="bg-white shadow-lg border-b border-gray-200">
+    <nav className="bg-white/90 backdrop-blur-md shadow-lg border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <Zap className="h-8 w-8 text-green-600" />
-              <span className="text-xl font-bold text-gray-900">E-Station</span>
+            <Link to="/map" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <Zap className="h-6 w-6 text-white" />
+              </div>
+              <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">E-Station</span>
             </Link>
           </div>
           
           <div className="flex items-center space-x-4">
             <Link 
-              to="/" 
+              to="/map" 
               className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                location.pathname === '/' 
-                  ? 'bg-primary-100 text-primary-700' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                location.pathname === '/map' 
+                  ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                  : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
               }`}
             >
               <Home className="h-4 w-4" />
@@ -52,8 +63,8 @@ function Navigation({ auth, setAuth }) {
                   to="/dashboard" 
                   className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     location.pathname === '/dashboard' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                      : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                   }`}
                 >
                   <User className="h-4 w-4" />
@@ -64,8 +75,8 @@ function Navigation({ auth, setAuth }) {
                   to="/profile" 
                   className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     location.pathname === '/profile' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                      : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                   }`}
                 >
                   <Settings className="h-4 w-4" />
@@ -77,12 +88,26 @@ function Navigation({ auth, setAuth }) {
                     to="/station/register" 
                     className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       location.pathname === '/station/register' 
-                        ? 'bg-primary-100 text-primary-700' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                        : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                     }`}
                   >
                     <Plus className="h-4 w-4" />
                     <span>Add Station</span>
+                  </Link>
+                )}
+                
+                {auth.role === 'onwheel-provider' && (
+                  <Link 
+                    to="/onwheel-service/register" 
+                    className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      location.pathname === '/onwheel-service/register' 
+                        ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                        : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Truck className="h-4 w-4" />
+                    <span>Register Service</span>
                   </Link>
                 )}
                 
@@ -91,8 +116,8 @@ function Navigation({ auth, setAuth }) {
                     to="/admin" 
                     className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       location.pathname === '/admin' 
-                        ? 'bg-primary-100 text-primary-700' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                        : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                     }`}
                   >
                     <Shield className="h-4 w-4" />
@@ -104,8 +129,8 @@ function Navigation({ auth, setAuth }) {
                   to="/my-bookings" 
                   className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     location.pathname === '/my-bookings' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                      : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                   }`}
                 >
                   <Calendar className="h-4 w-4" />
@@ -117,8 +142,8 @@ function Navigation({ auth, setAuth }) {
                     to="/my-stations" 
                     className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       location.pathname === '/my-stations' 
-                        ? 'bg-primary-100 text-primary-700' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                        : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                     }`}
                   >
                     <MapPin className="h-4 w-4" />
@@ -130,12 +155,24 @@ function Navigation({ auth, setAuth }) {
                   to="/trip-planner" 
                   className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     location.pathname === '/trip-planner' 
-                      ? 'bg-primary-100 text-primary-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                      : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
                   }`}
                 >
                   <Zap className="h-4 w-4" />
                   <span>EV Trip Planner</span>
+                </Link>
+                
+                <Link 
+                  to="/onwheel-services" 
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    location.pathname === '/onwheel-services' 
+                      ? 'bg-gradient-to-r from-green-100 to-blue-100 text-green-700' 
+                      : 'text-gray-600 hover:text-green-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Truck className="h-4 w-4" />
+                  <span>On-Wheel Services</span>
                 </Link>
                 
                 <div className="flex items-center space-x-2">
@@ -153,13 +190,13 @@ function Navigation({ auth, setAuth }) {
               <div className="flex items-center space-x-2">
                 <Link 
                   to="/login" 
-                  className="btn-secondary"
+                  className="px-4 py-2 text-gray-600 hover:text-green-600 transition-colors"
                 >
                   Login
                 </Link>
                 <Link 
                   to="/register" 
-                  className="btn-primary"
+                  className="bg-gradient-to-r from-green-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300"
                 >
                   Register
                 </Link>
@@ -188,9 +225,10 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50">
         <Navigation auth={auth} setAuth={setAuth} />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main>
           <Routes>
-            <Route path="/" element={<MapView />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/map" element={<MapView />} />
             <Route path="/login" element={<Login setAuth={setAuth} />} />
             <Route path="/register" element={<Register setAuth={setAuth} />} />
             <Route path="/station/register" element={<StationRegister />} />
@@ -201,6 +239,9 @@ export default function App() {
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/my-stations" element={<MyStations />} />
             <Route path="/trip-planner" element={<EVTripPlanner />} />
+            <Route path="/onwheel-services" element={<OnWheelServices />} />
+            <Route path="/onwheel-service/register" element={<OnWheelServiceRegister />} />
+            <Route path="/request-onwheel-service" element={<RequestOnWheelService />} />
           </Routes>
         </main>
         <Toaster 

@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import { MapPin, Filter, Zap, Clock, DollarSign, Search, Navigation, AlertCircle, Info, CheckCircle, X } from 'lucide-react';
+import { MapPin, Filter, Zap, Clock, DollarSign, Search, Navigation, AlertCircle, Info, CheckCircle, X, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import LiveStatus from '../components/LiveStatus';
+import StationRating from '../components/StationRating';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default markers in react-leaflet
@@ -29,7 +30,7 @@ function MapUpdater({ center }) {
   
   useEffect(() => {
     if (center) {
-      map.setView(center, 15); // Zoom in closer for user location
+      map.setView(center, 15);
     }
   }, [center, map]);
   
@@ -52,16 +53,16 @@ export default function MapView() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     getCurrentLocation();
-    // Initialize with some default notifications
     setNotifications([
       {
-        id: 1,
+        id: Date.now() + Math.random(),
         type: 'info',
         title: 'Welcome to E-Station Mapper!',
-        message: 'Find and book charging stations near you. Use filters to narrow down your search.',
+        message: 'Find and book charging stations near you.',
         timestamp: new Date(),
         persistent: true
       }
@@ -76,10 +77,10 @@ export default function MapView() {
         (pos) => {
           const newPosition = [pos.coords.latitude, pos.coords.longitude];
           setPosition(newPosition);
-          setUserLocation(newPosition); // Store user location separately
+          setUserLocation(newPosition);
           fetchStations(newPosition[0], newPosition[1]);
           toast.success('Location found! Showing nearby stations.');
-          addNotification('success', 'Location Updated', 'Your current location has been detected and nearby stations are being loaded.');
+          addNotification('success', 'Location Updated', 'Your current location has been detected.');
           setLocationLoading(false);
         },
         (error) => {
@@ -102,16 +103,11 @@ export default function MapView() {
           addNotification('error', 'Location Error', errorMessage);
           fetchStations(position[0], position[1]);
           setLocationLoading(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000
         }
       );
     } else {
       toast.error('Geolocation is not supported by this browser.');
-      addNotification('error', 'Browser Not Supported', 'Geolocation is not supported by this browser. Using default location.');
+      addNotification('error', 'Geolocation Not Supported', 'Your browser does not support geolocation.');
       fetchStations(position[0], position[1]);
       setLocationLoading(false);
     }
@@ -120,88 +116,18 @@ export default function MapView() {
   const fetchStations = async (lat, lng) => {
     setLoading(true);
     try {
-      let url = `/api/stations/nearby?lat=${lat}&lng=${lng}&maxDistance=${filters.distance}`;
-      if (filters.type) url += `&type=${filters.type}`;
-      if (filters.maxPrice) url += `&price=${filters.maxPrice}`;
-      if (filters.plugType) url += `&plugType=${filters.plugType}`;
-      
-      const res = await fetch(url);
-      
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      
-      // Ensure data is an array
-      if (Array.isArray(data)) {
-        setStations(data);
-        
-        // Add notifications based on station data
-        const newNotifications = [];
-        
-        if (data.length === 0) {
-          newNotifications.push({
-            id: Date.now(),
-            type: 'warning',
-            title: 'No Stations Found',
-            message: 'No charging stations found in your area. Try increasing the search distance or check back later.',
-            timestamp: new Date(),
-            persistent: false
-          });
-        } else {
-          // Check for stations with special status
-          const busyStations = data.filter(station => station.status === 'in_use');
-          const availableStations = data.filter(station => station.status === 'available');
-          
-          if (busyStations.length > 0) {
-            newNotifications.push({
-              id: Date.now() + 1,
-              type: 'info',
-              title: 'Station Status Update',
-              message: `${busyStations.length} station(s) are currently in use. Check wait times before booking.`,
-              timestamp: new Date(),
-              persistent: false
-            });
-          }
-          
-          if (availableStations.length > 0) {
-            newNotifications.push({
-              id: Date.now() + 2,
-              type: 'success',
-              title: 'Available Stations',
-              message: `${availableStations.length} station(s) are available for immediate booking!`,
-              timestamp: new Date(),
-              persistent: false
-            });
-          }
-        }
-        
-        // Add new notifications (limit to 5 most recent)
-        setNotifications(prev => {
-          const combined = [...prev.filter(n => n.persistent), ...newNotifications];
-          return combined.slice(-5);
-        });
-        
+      const response = await fetch(`/api/stations/nearby?lat=${lat}&lng=${lng}&maxDistance=${filters.distance}`);
+      if (response.ok) {
+        const data = await response.json();
+        setStations(Array.isArray(data) ? data : []);
+        addNotification('success', 'Stations Loaded', `Found ${data.length} charging stations near you.`);
       } else {
-        console.error('API returned non-array data:', data);
-        setStations([]);
-        toast.error('Invalid data received from server');
+        throw new Error('Failed to fetch stations');
       }
-    } catch (err) {
-      console.error('Error fetching stations:', err);
-      setStations([]);
-      toast.error('Failed to fetch stations. Please try again.');
-      
-      // Add error notification
-      setNotifications(prev => [...prev, {
-        id: Date.now(),
-        type: 'error',
-        title: 'Connection Error',
-        message: 'Unable to fetch station data. Please check your internet connection and try again.',
-        timestamp: new Date(),
-        persistent: false
-      }]);
+    } catch (error) {
+      console.error('Error fetching stations:', error);
+      toast.error('Failed to load charging stations');
+      addNotification('error', 'Loading Error', 'Failed to load charging stations. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -212,46 +138,33 @@ export default function MapView() {
   };
 
   const applyFilters = () => {
-    fetchStations(position[0], position[1]);
-    setShowFilters(false);
+    const filteredStations = stations.filter(station => {
+      if (filters.type && !station.types.includes(filters.type)) return false;
+      if (filters.maxPrice && station.price > parseFloat(filters.maxPrice)) return false;
+      if (filters.plugType && !station.plugTypes.includes(filters.plugType)) return false;
+      return true;
+    });
     
-    // Add notification about filter application
-    const filterCount = Object.values(filters).filter(v => v && v !== '5000').length;
-    if (filterCount > 0) {
-      setNotifications(prev => [...prev, {
-        id: Date.now(),
-        type: 'info',
-        title: 'Filters Applied',
-        message: `Applied ${filterCount} filter(s) to your search.`,
-        timestamp: new Date(),
-        persistent: false
-      }]);
-    }
+    setStations(filteredStations);
+    addNotification('info', 'Filters Applied', `Showing ${filteredStations.length} stations matching your criteria.`);
   };
 
   const clearAllNotifications = () => {
-    setNotifications(prev => prev.filter(n => n.persistent));
+    setNotifications([]);
   };
 
   const addNotification = (type, title, message) => {
-    setNotifications(prev => [...prev, {
-      id: Date.now(),
+    const newNotification = {
+      id: Date.now() + Math.random(),
       type,
       title,
       message,
-      timestamp: new Date(),
-      persistent: false
-    }]);
+      timestamp: new Date()
+    };
+    setNotifications(prev => [...prev, newNotification]);
   };
 
-  const getStationIcon = (types) => {
-    const isFast = types.some(type => type.toLowerCase().includes('fast'));
-    const isSuperFast = types.some(type => type.toLowerCase().includes('super'));
-    
-    if (isSuperFast) return '🔴';
-    if (isFast) return '🟡';
-    return '🟢';
-  };
+
 
   const removeNotification = (id) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
@@ -260,14 +173,14 @@ export default function MapView() {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'success':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'error':
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
       case 'warning':
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
+        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
       case 'info':
       default:
-        return <Info className="h-5 w-5 text-blue-500" />;
+        return <Info className="w-5 h-5 text-blue-500" />;
     }
   };
 
@@ -285,9 +198,15 @@ export default function MapView() {
     }
   };
 
+  const filteredStations = stations.filter(station => 
+    searchQuery === '' || 
+    station.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    station.address.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Simple Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Find Charging Stations</h1>
@@ -329,6 +248,18 @@ export default function MapView() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <input
+          type="text"
+          placeholder="Search for charging stations..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+        />
       </div>
 
       {/* Notifications Section */}
@@ -478,16 +409,16 @@ export default function MapView() {
             )}
             
             {/* Station Markers */}
-            {stations.map(station => (
-              <Marker 
-                key={station._id} 
+            {filteredStations.map(station => (
+              <Marker
+                key={station._id}
                 position={[station.location.coordinates[1], station.location.coordinates[0]]}
               >
                 <Popup className="station-popup">
                   <div className="min-w-80 space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        {getStationIcon(station.types)} {station.name}
+                        {station.name}
                       </h3>
                       <div className="space-y-2 text-sm text-gray-600">
                         <div className="flex items-center space-x-2">
@@ -507,9 +438,13 @@ export default function MapView() {
                           <span>
                             {station.isAvailable24x7 
                               ? 'Available 24/7' 
-                              : station.availabilitySlots.map(slot => `${slot.start}-${slot.end}`).join(', ')
+                              : station.availabilitySlots?.map(slot => `${slot.start}-${slot.end}`).join(', ') || 'Limited Hours'
                             }
                           </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Star className="h-4 w-4 text-yellow-400" />
+                          <span>{station.averageRating?.toFixed(1) || 'N/A'} ({station.totalReviews || 0} reviews)</span>
                         </div>
                       </div>
                     </div>
@@ -534,16 +469,20 @@ export default function MapView() {
       </div>
 
       {/* Station List */}
-      {stations.length > 0 && (
+      {filteredStations.length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Nearby Stations ({stations.length})</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Nearby Stations ({filteredStations.length})</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stations.map(station => (
+            {filteredStations.map(station => (
               <div key={station._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold text-gray-900">
-                    {getStationIcon(station.types)} {station.name}
+                    {station.name}
                   </h3>
+                  <div className="flex items-center space-x-1">
+                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                    <span className="text-sm text-gray-600">{station.averageRating?.toFixed(1) || 'N/A'}</span>
+                  </div>
                 </div>
                 <div className="space-y-2 text-sm text-gray-600 mb-3">
                   <div className="flex items-center space-x-2">
@@ -557,6 +496,10 @@ export default function MapView() {
                   <div className="flex items-center space-x-2">
                     <Zap className="h-4 w-4" />
                     <span>{station.types.join(', ')}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4" />
+                    <span>{station.isAvailable24x7 ? '24/7 Available' : 'Limited Hours'}</span>
                   </div>
                 </div>
                 
@@ -584,14 +527,14 @@ export default function MapView() {
       {loading && (
         <div className="card">
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
             <span className="ml-3 text-gray-600">Loading stations...</span>
           </div>
         </div>
       )}
 
       {/* No Stations Found */}
-      {!loading && stations.length === 0 && (
+      {!loading && filteredStations.length === 0 && (
         <div className="card">
           <div className="text-center py-12">
             <Zap className="h-12 w-12 mx-auto mb-3 text-gray-300" />

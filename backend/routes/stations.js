@@ -59,7 +59,7 @@ router.get('/nearby', async (req, res) => {
           $maxDistance: parseInt(maxDistance)
         }
       }
-    });
+    }).populate('reviews.user', 'name email');
     
     console.log(`Found ${stations.length} nearby stations`);
     res.json(stations);
@@ -96,7 +96,8 @@ router.patch('/:id', auth, ownerOnly, async (req, res) => {
 // Get a single station by ID - MUST come after specific routes
 router.get('/:id', async (req, res) => {
   try {
-    const station = await Station.findById(req.params.id);
+    const station = await Station.findById(req.params.id)
+      .populate('reviews.user', 'name email');
     if (!station) {
       return res.status(404).json({ error: 'Station not found' });
     }
