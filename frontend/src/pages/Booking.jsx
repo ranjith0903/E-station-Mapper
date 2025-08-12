@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import emailjs from '@emailjs/browser';
 import { OWNER_EMAIL_CONFIG, EMAIL_CONFIG } from '../utils/emailConfig';
 
-const stripePromise = loadStripe('pk_test_51QBqViHVrEESOxZHwP3ur6Ga3060peMawzOmlj7qrPi5IWPLdVRHtUjyudYiXT874RgzwpKtYu46QyRsJkHqaF8C00heb4jEYZ');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_KEY);
 
 function BookingForm({ stationId, amount, station }) {
   const stripe = useStripe();
